@@ -1,0 +1,567 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tasks & Deliverables Circular Layout</title>
+  <script src="https://d3js.org/d3.v7.min.js">
+
+
+
+window.addEventListener("load", function () {
+  const svgElement = document.querySelector("svg");
+  const bbox = svgElement.getBBox();
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const scale = Math.min(width / bbox.width, height / bbox.height) * 0.9 * 1.1;
+  const x = (width - bbox.width * scale) / 2;
+  const y = (height - bbox.height * scale) / 2;
+
+  d3.select("svg")
+    .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
+});
+</script>
+  <style>
+body {
+  margin: 0;
+  background: white;
+  font-family: sans-serif;
+  overflow: hidden;
+}
+.connection-line {
+  stroke: #999;
+  stroke-width: 1.5;
+  fill: none;
+}
+.connection-line.hidden {
+  display: none;
+}
+text {
+  font-size: 12px;
+  text-anchor: middle;
+  pointer-events: none;
+  fill: white;
+}
+</style>
+</head>
+<body>
+
+<div style="position: absolute; top: 10px; left: 10px; z-index: 10;">
+  <button id="wp-filter-toggle" style="padding: 6px 12px; font-size: 14px;">Filter by WP</button>
+  <div id="wp-filter-panel" style="display: none; margin-top: 5px; background: white; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+    <strong>Filter by WP:</strong><br>
+    <label style="background-color: #00497F; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP1" checked> WP1</label>
+<label style="background-color: #0075BF; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP2" checked> WP2</label>
+<label style="background-color: #14AAE2; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP3" checked> WP3</label>
+<label style="background-color: #83D0F5; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP4" checked> WP4</label>
+<label style="background-color: #00AB97; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP5" checked> WP5</label>
+<label style="background-color: #008E5C; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP6" checked> WP6</label>
+<label style="background-color: #4EB051; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP7" checked> WP7</label>
+<label style="background-color: #C7D64F; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP8" checked> WP8</label>
+<label style="background-color: #961E7A; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP9" checked> WP9</label>
+<label style="background-color: #6859A3; color: white; padding: 2px 6px; display: block; margin-bottom: 4px; border-radius: 4px;"><input type="checkbox" class="wp-filter" value="WP10" checked> WP10</label>
+  </div>
+</div>
+
+
+<style>
+#zoom-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+}
+#zoom-controls button {
+  margin: 2px;
+  padding: 6px 12px;
+  font-size: 14px;
+}
+</style>
+<div id="zoom-controls">
+  <button id="zoom-in">Zoom In</button>
+  <button id="zoom-out">Zoom Out</button>
+
+</div>
+
+  <svg viewBox="0 0 1400 1400"></svg>
+  <button id="toggle-legend">Show Filters</button>
+  
+<button id="zoom-in">Zoom In</button>
+<button id="zoom-out">Zoom Out</button>
+
+  <div class="legend hidden" id="legend-panel">
+    <div id="legend-content"></div>
+  </div>
+
+  <script>
+    // == START EXISTING SCRIPT ==
+
+function updateWPVisibility() {
+  const selectedWPs = Array.from(document.querySelectorAll('.wp-filter:checked')).map(cb => cb.value);
+
+  d3.selectAll(".task").style("display", d => selectedWPs.includes(d.wp) ? null : "none");
+  d3.selectAll(".task-label").style("display", d => selectedWPs.includes(d.wp) ? null : "none");
+  d3.selectAll(".deliverable").style("display", function() {
+    const dID = d3.select(this).attr("id");
+    const match = dID.match(/D(\d+)/);
+    const wpKey = match ? `WP${match[1]}` : null;
+    return selectedWPs.includes(wpKey) ? null : "none";
+  });
+  d3.selectAll(".deliverable-label").style("display", function() {
+    const dID = d3.select(this).attr("data-id");
+    const match = dID.match(/D(\d+)/);
+    const wpKey = match ? `WP${match[1]}` : null;
+    return selectedWPs.includes(wpKey) ? null : "none";
+  });
+  d3.selectAll(".connection-line").style("display", function() {
+    const id = d3.select(this).attr("id");
+    if (!id) return "none";
+    const ids = id.replace("conn-", "").split("-");
+    const from = ids[0], to = ids[1];
+    const fromMatch = from.match(/T(\d+)/);
+    const toMatch = to.match(/D(\d+)/);
+    const wpFrom = fromMatch ? `WP${fromMatch[1]}` : null;
+    const wpTo = toMatch ? `WP${toMatch[1]}` : null;
+    return (selectedWPs.includes(wpFrom) && selectedWPs.includes(wpTo)) ? null : "none";
+  });
+}
+
+document.querySelectorAll('.wp-filter').forEach(cb => {
+  cb.addEventListener('change', updateWPVisibility);
+});
+
+
+document.getElementById('wp-filter-toggle').addEventListener('click', () => {
+  const panel = document.getElementById('wp-filter-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+});
+
+    const width = 1400, height = 1400;
+    const svg = d3.select("svg");
+    const g = svg.append("g");
+    const connGroup = g.insert("g", ":first-child").attr("id", "connections");
+
+    const zoom = d3.zoom()
+      .scaleExtent([0.5, 5])
+      .on("zoom", function(event) { g.attr("transform", event.transform); });
+    svg.call(zoom);
+
+window.onload = function () {
+  let currentZoom = 1;
+  const zoomStep = 0.2;
+
+  document.getElementById("zoom-in").addEventListener("click", () => {
+    currentZoom = Math.min(currentZoom + zoomStep, 5);
+    svg.transition().duration(300).call(zoom.scaleTo, currentZoom);
+  });
+
+  document.getElementById("zoom-out").addEventListener("click", () => {
+    currentZoom = Math.max(currentZoom - zoomStep, 0.5);
+    svg.transition().duration(300).call(zoom.scaleTo, currentZoom);
+  });
+};
+
+
+let currentZoom = 1;
+const zoomStep = 0.2;
+
+document.getElementById("zoom-in").addEventListener("click", () => {
+  currentZoom = Math.min(currentZoom + zoomStep, 5);
+  svg.transition().duration(300).call(zoom.scaleTo, currentZoom);
+});
+
+document.getElementById("zoom-out").addEventListener("click", () => {
+  currentZoom = Math.max(currentZoom - zoomStep, 0.5);
+  svg.transition().duration(300).call(zoom.scaleTo, currentZoom);
+});
+
+
+    document.getElementById("toggle-legend").addEventListener("click", () => {
+      const panel = document.getElementById("legend-panel");
+      panel.classList.toggle("hidden");
+    });
+
+    // COLORS, TASKS, DELIVERABLES, CONNECTIONS...
+    // (Paste your full original tasks, deliverables, connections lists here — unchanged)
+
+    // PLACEHOLDER START (cut and paste your full versions)
+    const wpColors = {
+      WP1: "#00497F", WP2: "#0075BF", WP3: "#14AAE2", WP4: "#83D0F5",
+      WP5: "#00AB97", WP6: "#008E5C", WP7: "#4EB051", WP8: "#C7D64F",
+      WP9: "#961E7A", WP10: "#6859A3"
+    };
+    const wpKeys = Object.keys(wpColors);
+    const centerX = width / 2, centerY = height / 2;
+    const outerRadius = 600, taskRadius = 30;
+    const hexagonPath = [
+      "M", 0, -taskRadius, "L", taskRadius, -20, "L", taskRadius, 20,
+      "L", 0, taskRadius, "L", -taskRadius, 20, "L", -taskRadius, -20, "Z"
+    ].join(" ");
+
+    // Load your full data
+    const tasks = [{"id": "T1.1", "wp": "WP1", "label": "T1.1 – Project coordination"}, {"id": "T2.1", "wp": "WP2", "label": "T2.1 – Develop a data management plan"}, {"id": "T2.2", "wp": "WP2", "label": "T2.2 – Design and agreement on two consecutive regional data calls"}, {"id": "T2.3", "wp": "WP2", "label": "T2.3 – Collate data/spatial information"}, {"id": "T2.4", "wp": "WP2", "label": "T2.4 – Collate and harvest MPA management related information"}, {"id": "T2.5", "wp": "WP2", "label": "T2.5 – Updating existing databases"}, {"id": "T2.6", "wp": "WP2", "label": "T2.6 – Gap analysis of further data needs"}, {"id": "T3.1", "wp": "WP3", "label": "T3.1 – Produce environmental predictor datasets to enable spatial modelling of species, biotopes and habitats"}, {"id": "T3.2", "wp": "WP3", "label": "T3.2 – Predicting spatio-temporal patterns of species, biotopes and habitats"}, {"id": "T3.3", "wp": "WP3", "label": "T3.3 – Development of pressure models that describe threats to species and habitats"}, {"id": "T3.4", "wp": "WP3", "label": "T3.4 – Modelling of distribution maps to estimate future conditions of species, habitats and biotopes"}, {"id": "T3.5", "wp": "WP3", "label": "T3.5 – Analysis and identification of possible biodiversity hotspots and areas of high resilience"}, {"id": "T4.1", "wp": "WP4", "label": "T4.1 – Developing a multi-use methodology for Identification, Mapping and Quantification of ecosystem services"}, {"id": "T4.2", "wp": "WP4", "label": "T4.2 – Exploration of ecosystem component quality and location for upscaling of ecosystem services"}, {"id": "T4.3", "wp": "WP4", "label": "T4.3 – Analysing the relationship between ecosystem services and human activities"}, {"id": "T4.4", "wp": "WP4", "label": "T4.4 – Methodology for valuation of ecosystem services"}, {"id": "T4.5", "wp": "WP4", "label": "T4.5 – Assessment of ecosystem services, their distribution and valuation"}, {"id": "T4.6", "wp": "WP4", "label": "T4.6 – Gap analysis of ecosystem service methodology"}, {"id": "T5.1", "wp": "WP5", "label": "T5.1 – Revision of coherence methodology"}, {"id": "T5.2", "wp": "WP5", "label": "T5.2 – Development of connectivity models"}, {"id": "T5.3", "wp": "WP5", "label": "T5.3 – Analysis and assessment of ecological coherence of the MPA network"}, {"id": "T5.4", "wp": "WP5", "label": "T5.4 – Coherence assessment tool"}, {"id": "T5.5", "wp": "WP5", "label": "T5.5 – Recommendations for the coherence assessment method improvements"}, {"id": "T5.6", "wp": "WP5", "label": "T5.6 – Developing maps that will show spatial prioritization (identification of areas in need of protection) of the MPA network"}, {"id": "T6.1", "wp": "WP6", "label": "T6.1 – Listing ecosystem components and their characteristics"}, {"id": "T6.2", "wp": "WP6", "label": "T6.2 – Agreeing on common vision, terminology and protection objectives"}, {"id": "T6.3", "wp": "WP6", "label": "T6.3 – Determining protection targets and indicators"}, {"id": "T6.4", "wp": "WP6", "label": "T6.4 – Identifying threats and pressures to ecosystems"}, {"id": "T6.5", "wp": "WP6", "label": "T6.5 – Assessing effectiveness and sufficiency of protection measures"}, {"id": "T6.6", "wp": "WP6", "label": "T6.6 – Identifying the characteristics of the areas that are needed to optimize the network"}, {"id": "T6.7", "wp": "WP6", "label": "T6.7 – Updating guidelines for planning and designating HELCOM MPAs"}, {"id": "T6.8", "wp": "WP6", "label": "T6.8 – Updating guidelines for MPA management"}, {"id": "T6.9", "wp": "WP6", "label": "T6.9 – Developing methodology for Management Effectiveness Assessment (MEA) of the Baltic MPA network"}, {"id": "T6.10", "wp": "WP6", "label": "T6.10 – Testing and validating the MEA method and its application for management effectiveness assessment"}, {"id": "T6.11A", "wp": "WP6", "label": "T6.11A – Capacity building for MPA managers"}, {"id": "T6.11B", "wp": "WP6", "label": "T6.11B – Assessing the management effectiveness of the Baltic Sea MPA network"}, {"id": "T6.12", "wp": "WP6", "label": "T6.12 – Developing a regionally agreed Restoration Action Plan and toolbox"}, {"id": "T6.13", "wp": "WP6", "label": "T6.13 – Reviewing the existing monitoring systems of the MPAs in the Baltic Sea region"}, {"id": "T6.14", "wp": "WP6", "label": "T6.14 – Review of possible novel, innovative monitoring tools and methods to describe status of protection values and human pressure in MPAs"}, {"id": "T6.15", "wp": "WP6", "label": "T6.15 – Developing monitoring framework and guidelines for the MPAs network"}, {"id": "T7.1", "wp": "WP7", "label": "T7.1 – Existing international legal frameworks"}, {"id": "T7.2", "wp": "WP7", "label": "T7.2 – Country profiles and knowledge sharing"}, {"id": "T7.3", "wp": "WP7", "label": "T7.3 – Guidance and best practice"}, {"id": "T8.1", "wp": "WP8", "label": "T8.1 – Defining requirement specification for HELCOM MPA portal"}, {"id": "T8.2", "wp": "WP8", "label": "T8.2 – Analysis and update of HELCOM MPA database"}, {"id": "T8.3", "wp": "WP8", "label": "T8.3 – Development of HELCOM MPA Portal application"}, {"id": "T9.1", "wp": "WP9", "label": "T9.1 – Communication Strategy"}, {"id": "T9.2", "wp": "WP9", "label": "T9.2 – Visual Identity and Communication Toolkit"}, {"id": "T9.3", "wp": "WP9", "label": "T9.3 – Project website"}, {"id": "T9.4", "wp": "WP9", "label": "T9.4 – Social media"}, {"id": "T9.5", "wp": "WP9", "label": "T9.5 – MPA Portal user interface"}, {"id": "T9.6", "wp": "WP9", "label": "T9.6 – Augmented Reality Application"}, {"id": "T9.7", "wp": "WP9", "label": "T9.7 – Developing newsletters and other forms of written content"}, {"id": "T9.8", "wp": "WP9", "label": "T9.8 – Stakeholder engagement and community events"}, {"id": "T9.9", "wp": "WP9", "label": "T9.9 – Media relations and outreach"}, {"id": "T9.10", "wp": "WP9", "label": "T9.10 – Print materials for education and outreach"}, {"id": "T9.11", "wp": "WP9", "label": "T9.11 – Project-related publications and articles"}, {"id": "T9.12", "wp": "WP9", "label": "T9.12 – Final project report"}, {"id": "T9.13", "wp": "WP9", "label": "T9.13 – Event and conference planning"}, {"id": "T9.14", "wp": "WP9", "label": "T9.14 – Multi-platform campaign strategy"}, {"id": "T9.15", "wp": "WP9", "label": "T9.15 – Final dissemination and presentation to stakeholders"}, {"id": "T10.1", "wp": "WP10", "label": "T10.1 – Project coordination and management"}, {"id": "T10.2", "wp": "WP10", "label": "T10.2 – Reporting and financial oversight"}, {"id": "T10.3", "wp": "WP10", "label": "T10.3 – Quality assurance of the project"}];          // FULL TASKS ARRAY
+    const deliverables = [{"id": "D1.1", "wp": "WP1", "label": "D1.1 – Project coordination and management guidelines"}, {"id": "D1.2", "wp": "WP1", "label": "D1.2 – Specified project implementation plan"}, {"id": "D2.1", "wp": "WP2", "label": "D2.1 – Data management plan"}, {"id": "D2.2", "wp": "WP2", "label": "D2.2 – Updated MPA Portal"}, {"id": "D2.3", "wp": "WP2", "label": "D2.3 – Updated Biodiversity Database"}, {"id": "D2.4", "wp": "WP2", "label": "D2.4 – Updated Map and data service for the Baltic Sea region"}, {"id": "D2.5", "wp": "WP2", "label": "D2.5 – Updated gap analysis of data in order to get a clear overview of further data needs and infrastructure development"}, {"id": "D2.6", "wp": "WP2", "label": "D2.6 – Updating data management plan"}, {"id": "D2.7", "wp": "WP2", "label": "D2.7 – Report on what data has been collated and uploaded to the various databases"}, {"id": "D2.8", "wp": "WP2", "label": "D2.8 – Updated data management plan"}, {"id": "D2.9", "wp": "WP2", "label": "D2.9 – WP2 implementation plan, including timetable"}, {"id": "D2.10", "wp": "WP2", "label": "D2.10 – Report on data gaps"}, {"id": "D3.1", "wp": "WP3", "label": "D3.1 – Spatial map layers on the abiotic ecosystem components in the Baltic Sea i.e. environmental predictor layers"}, {"id": "D3.2", "wp": "WP3", "label": "D3.2 – Environmental predictor layers modelling code"}, {"id": "D3.3", "wp": "WP3", "label": "D3.3 – Updated automated tool for illustrating spatial distribution of activities, pressures and impacts"}, {"id": "D3.4", "wp": "WP3", "label": "D3.4 – Manual for the tool for spatial pressures and impacts of human activities"}, {"id": "D3.5", "wp": "WP3", "label": "D3.5 – Habitat and species distribution modelling code"}, {"id": "D3.6", "wp": "WP3", "label": "D3.6 – Spatial map layers on the biotic ecosystem components in the Baltic Sea"}, {"id": "D3.7", "wp": "WP3", "label": "D3.7 – Spatial map layers on the human activities in the Baltic Sea"}, {"id": "D3.8", "wp": "WP3", "label": "D3.8 – Estimates for future abiotic conditions under climate change"}, {"id": "D3.9", "wp": "WP3", "label": "D3.9 – Estimates for future distribution of species and habitats under climate change"}, {"id": "D3.10", "wp": "WP3", "label": "D3.10 – Spatial information on possible biodiversity hotspots (present and future)"}, {"id": "D3.11", "wp": "WP3", "label": "D3.11 – Report on potential biodiversity hotspots in the Baltic Sea"}, {"id": "D3.12", "wp": "WP3", "label": "D3.12 – Biodiversity hotspot modelling code"}, {"id": "D3.13", "wp": "WP3", "label": "D3.13 – Future conditions modelling code"}, {"id": "D3.14", "wp": "WP3", "label": "D3.14 – Overview of environment predictor factors to be included in the models"}, {"id": "D3.15", "wp": "WP3", "label": "D3.15 – WP3 implementation plan, including timetable"}, {"id": "D4.1", "wp": "WP4", "label": "D4.1 – Conceptual causal framework for EC, ES and pressures"}, {"id": "D4.2", "wp": "WP4", "label": "D4.2 – Decision support tool for spatial assessment of ecosystem services"}, {"id": "D4.3", "wp": "WP4", "label": "D4.3 – Updated ecosystem service assessment methodology"}, {"id": "D4.4", "wp": "WP4", "label": "D4.4 – Gap analysis of ecosystem service methodology"}, {"id": "D4.5", "wp": "WP4", "label": "D4.5 – Report on the multi-use methodology for identification, mapping, and quantification of ecosystem services"}, {"id": "D4.6", "wp": "WP4", "label": "D4.6 – WP4 implementation plan, including timetable"}, {"id": "D5.1", "wp": "WP5", "label": "D5.1 – Guidance for ecological coherence assessment"}, {"id": "D5.2", "wp": "WP5", "label": "D5.2 – Code for ecological coherence assessment"}, {"id": "D5.3", "wp": "WP5", "label": "D5.3 – Connectivity maps and matrices of key species, both passively and actively dispersing"}, {"id": "D5.4", "wp": "WP5", "label": "D5.4 – Coherence assessment report"}, {"id": "D5.5", "wp": "WP5", "label": "D5.5 – Maps for optimizing the MPA network"}, {"id": "D5.6", "wp": "WP5", "label": "D5.6 – WP5 implementation plan, including timetable"}, {"id": "D6.1", "wp": "WP6", "label": "D6.1 – List of protection targets for species and habitats for the Baltic Sea"}, {"id": "D6.2", "wp": "WP6", "label": "D6.2 – Common vision for protection and protection objectives for the Baltic Sea"}, {"id": "D6.3", "wp": "WP6", "label": "D6.3 – Protection terminology"}, {"id": "D6.4", "wp": "WP6", "label": "D6.4 – Protection targets"}, {"id": "D6.5", "wp": "WP6", "label": "D6.5 – Protection indicators"}, {"id": "D6.6", "wp": "WP6", "label": "D6.6 – Threat taxonomy"}, {"id": "D6.7", "wp": "WP6", "label": "D6.7 – Manual for establishing a regional framework for protection"}, {"id": "D6.8", "wp": "WP6", "label": "D6.8 – Coherence and functionality gaps of the MPA network"}, {"id": "D6.9", "wp": "WP6", "label": "D6.9 – Guidelines for planning and designation on MPAs in the Baltic Sea"}, {"id": "D6.10", "wp": "WP6", "label": "D6.10 – MPA management guidelines"}, {"id": "D6.11", "wp": "WP6", "label": "D6.11 – Annual MPA management capacity building workshops"}, {"id": "D6.12", "wp": "WP6", "label": "D6.12 – Assessment of management effectiveness of the Baltic MPA network"}, {"id": "D6.13", "wp": "WP6", "label": "D6.13 – Recommendations for improving Management Effectiveness"}, {"id": "D6.14", "wp": "WP6", "label": "D6.14 – MEA tool"}, {"id": "D6.15", "wp": "WP6", "label": "D6.15 – Manual for MEA methodology and using MEA tool"}, {"id": "D6.16", "wp": "WP6", "label": "D6.16 – Restoration action plan"}, {"id": "D6.17", "wp": "WP6", "label": "D6.17 – Restoration toolbox"}, {"id": "D6.18", "wp": "WP6", "label": "D6.18 – Report on current monitoring and available monitoring techniques for MPAs"}, {"id": "D6.19", "wp": "WP6", "label": "D6.19 – Guidelines for monitoring MPAs"}, {"id": "D6.20", "wp": "WP6", "label": "D6.20 – Effectiveness and sufficiency of protection and restoration measures analysis"}, {"id": "D6.21", "wp": "WP6", "label": "D6.21 – Effectiveness and sufficiency of protection and restoration measures methodology and manual"}, {"id": "D6.22", "wp": "WP6", "label": "D6.22 – Effectiveness and sufficiency of protection and restoration measures report"}, {"id": "D6.23", "wp": "WP6", "label": "D6.23 – Regional Restoration Action Plan"}, {"id": "D6.24", "wp": "WP6", "label": "D6.24 – Regional restoration toolbox"}, {"id": "D6.25", "wp": "WP6", "label": "D6.25 – Updated manual for MEA methodology and using MEA tool"}, {"id": "D6.26", "wp": "WP6", "label": "D6.26 – Overview of MPA managers needs with regards to the MPA Management Guidelines"}, {"id": "D6.27", "wp": "WP6", "label": "D6.27 – Draft blueprint for process for identifying a list of protection targets for species and habitats"}, {"id": "D6.28", "wp": "WP6", "label": "D6.28 – WP6 implementation plan, including timetable"}, {"id": "D6.29", "wp": "WP6", "label": "D6.29 – Draft threat taxonomy"}, {"id": "D6.30", "wp": "WP6", "label": "D6.30 – Draft list of protection terminology"}, {"id": "D7.1", "wp": "WP7", "label": "D7.1 – Report of legislative landscape in the Baltic Sea"}, {"id": "D7.2", "wp": "WP7", "label": "D7.2 – Country specific legislative analysis and profiles"}, {"id": "D7.3", "wp": "WP7", "label": "D7.3 – Analysis of legislative gaps, challenges and barriers"}, {"id": "D7.4", "wp": "WP7", "label": "D7.4 – Legal guidance roadmap"}, {"id": "D7.5", "wp": "WP7", "label": "D7.5 – WP7 implementation plan, including timetable"}, {"id": "D8.1", "wp": "WP8", "label": "D8.1 – Baltic Sea MPA database"}, {"id": "D8.2", "wp": "WP8", "label": "D8.2 – MPA Portal"}, {"id": "D8.3", "wp": "WP8", "label": "D8.3 – Manual for using and updating the MPA Portal"}, {"id": "D8.4", "wp": "WP8", "label": "D8.4 – Requirement specification of the HELCOM MPA portal"}, {"id": "D8.5", "wp": "WP8", "label": "D8.5 – Data model for the HELCOM MPA database"}, {"id": "D8.6", "wp": "WP8", "label": "D8.6 – WP8 implementation plan, including timetable"}, {"id": "D9.1", "wp": "WP9", "label": "D9.1 – Communication strategy"}, {"id": "D9.2", "wp": "WP9", "label": "D9.2 – Visual identity and communication toolkit"}, {"id": "D9.3", "wp": "WP9", "label": "D9.3 – Project website"}, {"id": "D9.4", "wp": "WP9", "label": "D9.4 – Social media"}, {"id": "D9.5", "wp": "WP9", "label": "D9.5 – MPA Portal user interface"}, {"id": "D9.6", "wp": "WP9", "label": "D9.6 – Augmented reality application (AR app)"}, {"id": "D9.7", "wp": "WP9", "label": "D9.7 – AR app promotion kit"}, {"id": "D9.8", "wp": "WP9", "label": "D9.8 – Ocean literacy kit"}, {"id": "D9.9", "wp": "WP9", "label": "D9.9 – Webinar on MPAs"}, {"id": "D9.10", "wp": "WP9", "label": "D9.10 – Project opening conference"}, {"id": "D9.11", "wp": "WP9", "label": "D9.11 – Project video"}, {"id": "D9.12", "wp": "WP9", "label": "D9.12 – Outreach video"}, {"id": "D9.13", "wp": "WP9", "label": "D9.13 – Publications"}, {"id": "D9.14", "wp": "WP9", "label": "D9.14 – Email news blasts"}, {"id": "D9.15", "wp": "WP9", "label": "D9.15 – Content creation"}, {"id": "D9.16", "wp": "WP9", "label": "D9.16 – Project final conference"}, {"id": "D9.17", "wp": "WP9", "label": "D9.17 – WP9 implementation plan, including timetable"}, {"id": "D10.1", "wp": "WP10", "label": "D10.1 – Exploitation strategy"}, {"id": "D10.2", "wp": "WP10", "label": "D10.2 – After-project plan"}, {"id": "D10.3", "wp": "WP10", "label": "D10.3 – Updated Exploitation strategy"}];   // FULL DELIVERABLES ARRAY
+    const connections = [{"from": "T1.1", "to": "D1.1", "type": "key"}, {"from": "T1.1", "to": "D1.2", "type": "key"}, {"from": "T1.1", "to": "D2.9", "type": "feed"}, {"from": "T1.1", "to": "D3.15", "type": "feed"}, {"from": "T1.1", "to": "D4.6", "type": "feed"}, {"from": "T1.1", "to": "D5.6", "type": "feed"}, {"from": "T1.1", "to": "D6.28", "type": "feed"}, {"from": "T1.1", "to": "D7.5", "type": "feed"}, {"from": "T1.1", "to": "D8.6", "type": "feed"}, {"from": "T1.1", "to": "D9.17", "type": "feed"}, {"from": "T2.1", "to": "D2.1", "type": "key"}, {"from": "T2.1", "to": "D2.6", "type": "key"}, {"from": "T2.1", "to": "D2.8", "type": "key"}, {"from": "T2.2", "to": "D3.1", "type": "key"}, {"from": "T2.2", "to": "D3.2", "type": "key"}, {"from": "T2.2", "to": "D3.5", "type": "key"}, {"from": "T2.2", "to": "D3.6", "type": "key"}, {"from": "T2.2", "to": "D3.7", "type": "key"}, {"from": "T2.2", "to": "D3.10", "type": "key"}, {"from": "T2.2", "to": "D3.12", "type": "key"}, {"from": "T2.2", "to": "D3.14", "type": "key"}, {"from": "T2.2", "to": "D2.2", "type": "feed"}, {"from": "T2.2", "to": "D2.3", "type": "feed"}, {"from": "T2.2", "to": "D2.4", "type": "feed"}, {"from": "T2.2", "to": "D2.5", "type": "feed"}, {"from": "T2.2", "to": "D2.7", "type": "feed"}, {"from": "T2.2", "to": "D2.10", "type": "feed"}, {"from": "T2.2", "to": "D3.3", "type": "feed"}, {"from": "T2.2", "to": "D3.4", "type": "feed"}, {"from": "T2.2", "to": "D4.3", "type": "feed"}, {"from": "T2.2", "to": "D5.3", "type": "feed"}, {"from": "T2.2", "to": "D5.5", "type": "feed"}, {"from": "T2.2", "to": "D6.1", "type": "feed"}, {"from": "T2.2", "to": "D6.5", "type": "feed"}, {"from": "T2.2", "to": "D6.7", "type": "feed"}, {"from": "T2.2", "to": "D6.8", "type": "feed"}, {"from": "T2.2", "to": "D6.9", "type": "feed"}, {"from": "T2.2", "to": "D6.18", "type": "feed"}, {"from": "T2.2", "to": "D6.20", "type": "feed"}, {"from": "T2.2", "to": "D6.21", "type": "feed"}, {"from": "T2.2", "to": "D6.22", "type": "feed"}, {"from": "T2.2", "to": "D6.23", "type": "feed"}, {"from": "T2.2", "to": "D8.1", "type": "feed"}, {"from": "T2.2", "to": "D8.2", "type": "feed"}, {"from": "T2.2", "to": "D8.3", "type": "feed"}, {"from": "T2.2", "to": "D8.4", "type": "feed"}, {"from": "T2.2", "to": "D8.5", "type": "feed"}, {"from": "T2.2", "to": "D9.9", "type": "feed"}, {"from": "T2.2", "to": "D9.13", "type": "feed"}, {"from": "T2.3", "to": "D2.3", "type": "key"}, {"from": "T2.3", "to": "D2.4", "type": "key"}, {"from": "T2.3", "to": "D2.5", "type": "key"}, {"from": "T2.3", "to": "D2.7", "type": "key"}, {"from": "T2.3", "to": "D3.1", "type": "key"}, {"from": "T2.3", "to": "D3.2", "type": "key"}, {"from": "T2.3", "to": "D3.5", "type": "key"}, {"from": "T2.3", "to": "D3.6", "type": "key"}, {"from": "T2.3", "to": "D3.7", "type": "key"}, {"from": "T2.3", "to": "D3.10", "type": "key"}, {"from": "T2.3", "to": "D3.11", "type": "key"}, {"from": "T2.3", "to": "D3.12", "type": "key"}, {"from": "T2.3", "to": "D2.2", "type": "feed"}, {"from": "T2.3", "to": "D2.10", "type": "feed"}, {"from": "T2.3", "to": "D3.3", "type": "feed"}, {"from": "T2.3", "to": "D3.4", "type": "feed"}, {"from": "T2.3", "to": "D3.13", "type": "feed"}, {"from": "T2.3", "to": "D3.14", "type": "feed"}, {"from": "T2.3", "to": "D4.3", "type": "feed"}, {"from": "T2.3", "to": "D5.3", "type": "feed"}, {"from": "T2.3", "to": "D5.5", "type": "feed"}, {"from": "T2.3", "to": "D6.1", "type": "feed"}, {"from": "T2.3", "to": "D6.5", "type": "feed"}, {"from": "T2.3", "to": "D6.7", "type": "feed"}, {"from": "T2.3", "to": "D6.8", "type": "feed"}, {"from": "T2.3", "to": "D6.9", "type": "feed"}, {"from": "T2.3", "to": "D6.18", "type": "feed"}, {"from": "T2.3", "to": "D6.20", "type": "feed"}, {"from": "T2.3", "to": "D6.21", "type": "feed"}, {"from": "T2.3", "to": "D6.22", "type": "feed"}, {"from": "T2.3", "to": "D6.23", "type": "feed"}, {"from": "T2.3", "to": "D8.1", "type": "feed"}, {"from": "T2.3", "to": "D8.2", "type": "feed"}, {"from": "T2.3", "to": "D8.3", "type": "feed"}, {"from": "T2.3", "to": "D8.4", "type": "feed"}, {"from": "T2.3", "to": "D8.5", "type": "feed"}, {"from": "T2.3", "to": "D9.9", "type": "feed"}, {"from": "T2.3", "to": "D9.13", "type": "feed"}, {"from": "T2.4", "to": "D2.4", "type": "key"}, {"from": "T2.4", "to": "D6.1", "type": "key"}, {"from": "T2.4", "to": "D6.7", "type": "feed"}, {"from": "T2.4", "to": "D6.8", "type": "feed"}, {"from": "T2.4", "to": "D6.9", "type": "feed"}, {"from": "T2.4", "to": "D6.10", "type": "feed"}, {"from": "T2.4", "to": "D6.11", "type": "feed"}, {"from": "T2.4", "to": "D6.12", "type": "feed"}, {"from": "T2.4", "to": "D6.18", "type": "feed"}, {"from": "T2.4", "to": "D6.19", "type": "feed"}, {"from": "T2.4", "to": "D7.1", "type": "feed"}, {"from": "T2.4", "to": "D7.2", "type": "feed"}, {"from": "T2.4", "to": "D7.3", "type": "feed"}, {"from": "T2.4", "to": "D7.4", "type": "feed"}, {"from": "T2.4", "to": "D8.1", "type": "feed"}, {"from": "T2.4", "to": "D8.2", "type": "feed"}, {"from": "T2.5", "to": "D2.2", "type": "key"}, {"from": "T2.5", "to": "D2.3", "type": "key"}, {"from": "T2.5", "to": "D2.4", "type": "key"}, {"from": "T2.5", "to": "D2.7", "type": "key"}, {"from": "T2.5", "to": "D2.5", "type": "feed"}, {"from": "T2.5", "to": "D2.10", "type": "feed"}, {"from": "T2.5", "to": "D3.1", "type": "feed"}, {"from": "T2.5", "to": "D3.2", "type": "feed"}, {"from": "T2.5", "to": "D3.3", "type": "feed"}, {"from": "T2.5", "to": "D3.4", "type": "feed"}, {"from": "T2.5", "to": "D3.5", "type": "feed"}, {"from": "T2.5", "to": "D3.6", "type": "feed"}, {"from": "T2.5", "to": "D3.7", "type": "feed"}, {"from": "T2.5", "to": "D3.10", "type": "feed"}, {"from": "T2.5", "to": "D3.11", "type": "feed"}, {"from": "T2.5", "to": "D3.12", "type": "feed"}, {"from": "T2.5", "to": "D3.13", "type": "feed"}, {"from": "T2.5", "to": "D3.14", "type": "feed"}, {"from": "T2.5", "to": "D4.3", "type": "feed"}, {"from": "T2.5", "to": "D5.3", "type": "feed"}, {"from": "T2.5", "to": "D5.5", "type": "feed"}, {"from": "T2.5", "to": "D6.1", "type": "feed"}, {"from": "T2.5", "to": "D6.5", "type": "feed"}, {"from": "T2.5", "to": "D6.7", "type": "feed"}, {"from": "T2.5", "to": "D6.8", "type": "feed"}, {"from": "T2.5", "to": "D6.9", "type": "feed"}, {"from": "T2.5", "to": "D6.18", "type": "feed"}, {"from": "T2.5", "to": "D6.20", "type": "feed"}, {"from": "T2.5", "to": "D6.21", "type": "feed"}, {"from": "T2.5", "to": "D6.22", "type": "feed"}, {"from": "T2.5", "to": "D6.23", "type": "feed"}, {"from": "T2.5", "to": "D8.1", "type": "feed"}, {"from": "T2.5", "to": "D8.2", "type": "feed"}, {"from": "T2.5", "to": "D8.3", "type": "feed"}, {"from": "T2.5", "to": "D8.4", "type": "feed"}, {"from": "T2.5", "to": "D8.5", "type": "feed"}, {"from": "T2.5", "to": "D9.9", "type": "feed"}, {"from": "T2.5", "to": "D9.13", "type": "feed"}, {"from": "T2.6", "to": "D2.5", "type": "key"}, {"from": "T2.6", "to": "D2.10", "type": "key"}, {"from": "T3.1", "to": "D3.1", "type": "key"}, {"from": "T3.1", "to": "D3.2", "type": "key"}, {"from": "T3.1", "to": "D3.14", "type": "key"}, {"from": "T3.1", "to": "D2.10", "type": "feed"}, {"from": "T3.1", "to": "D3.8", "type": "feed"}, {"from": "T3.1", "to": "D4.2", "type": "feed"}, {"from": "T3.1", "to": "D5.2", "type": "feed"}, {"from": "T3.1", "to": "D5.3", "type": "feed"}, {"from": "T3.1", "to": "D5.5", "type": "feed"}, {"from": "T3.1", "to": "D8.1", "type": "feed"}, {"from": "T3.1", "to": "D8.2", "type": "feed"}, {"from": "T3.2", "to": "D3.5", "type": "key"}, {"from": "T3.2", "to": "D3.6", "type": "key"}, {"from": "T3.2", "to": "D2.10", "type": "feed"}, {"from": "T3.2", "to": "D3.9", "type": "feed"}, {"from": "T3.2", "to": "D3.10", "type": "feed"}, {"from": "T3.2", "to": "D3.12", "type": "feed"}, {"from": "T3.2", "to": "D4.2", "type": "feed"}, {"from": "T3.2", "to": "D5.2", "type": "feed"}, {"from": "T3.2", "to": "D5.3", "type": "feed"}, {"from": "T3.2", "to": "D5.5", "type": "feed"}, {"from": "T3.2", "to": "D8.1", "type": "feed"}, {"from": "T3.2", "to": "D8.2", "type": "feed"}, {"from": "T3.3", "to": "D3.3", "type": "key"}, {"from": "T3.3", "to": "D3.4", "type": "key"}, {"from": "T3.3", "to": "D3.7", "type": "key"}, {"from": "T3.3", "to": "D2.10", "type": "feed"}, {"from": "T3.3", "to": "D4.1", "type": "feed"}, {"from": "T3.3", "to": "D4.2", "type": "feed"}, {"from": "T3.3", "to": "D5.2", "type": "feed"}, {"from": "T3.3", "to": "D5.5", "type": "feed"}, {"from": "T3.3", "to": "D6.6", "type": "feed"}, {"from": "T3.3", "to": "D8.1", "type": "feed"}, {"from": "T3.3", "to": "D8.2", "type": "feed"}, {"from": "T3.4", "to": "D3.8", "type": "key"}, {"from": "T3.4", "to": "D3.9", "type": "key"}, {"from": "T3.4", "to": "D3.13", "type": "key"}, {"from": "T3.4", "to": "D2.10", "type": "feed"}, {"from": "T3.4", "to": "D3.11", "type": "feed"}, {"from": "T3.4", "to": "D3.12", "type": "feed"}, {"from": "T3.4", "to": "D5.5", "type": "feed"}, {"from": "T3.4", "to": "D8.1", "type": "feed"}, {"from": "T3.4", "to": "D8.2", "type": "feed"}, {"from": "T3.5", "to": "D3.10", "type": "key"}, {"from": "T3.5", "to": "D3.11", "type": "key"}, {"from": "T3.5", "to": "D3.12", "type": "key"}, {"from": "T3.5", "to": "D2.10", "type": "feed"}, {"from": "T3.5", "to": "D3.13", "type": "feed"}, {"from": "T3.5", "to": "D5.5", "type": "feed"}, {"from": "T3.5", "to": "D8.1", "type": "feed"}, {"from": "T3.5", "to": "D8.2", "type": "feed"}, {"from": "T4.1", "to": "D4.1", "type": "key"}, {"from": "T4.1", "to": "D4.5", "type": "feed"}, {"from": "T4.1", "to": "D5.4", "type": "feed"}, {"from": "T4.1", "to": "D5.5", "type": "feed"}, {"from": "T4.2", "to": "D4.2", "type": "key"}, {"from": "T4.3", "to": "D4.3", "type": "key"}, {"from": "T4.4", "to": "D4.5", "type": "key"}, {"from": "T4.4", "to": "D4.2", "type": "feed"}, {"from": "T4.5", "to": "D6.8", "type": "feed"}, {"from": "T4.6", "to": "D4.4", "type": "key"}, {"from": "T5.1", "to": "D5.1", "type": "key"}, {"from": "T5.2", "to": "D5.3", "type": "key"}, {"from": "T5.2", "to": "D5.4", "type": "key"}, {"from": "T5.2", "to": "D4.2", "type": "feed"}, {"from": "T5.2", "to": "D8.2", "type": "feed"}, {"from": "T5.3", "to": "D5.2", "type": "key"}, {"from": "T5.3", "to": "D5.4", "type": "key"}, {"from": "T5.3", "to": "D6.8", "type": "feed"}, {"from": "T5.4", "to": "D5.2", "type": "key"}, {"from": "T5.4", "to": "D5.4", "type": "key"}, {"from": "T5.4", "to": "D6.8", "type": "feed"}, {"from": "T5.5", "to": "D5.1", "type": "key"}, {"from": "T5.6", "to": "D5.5", "type": "key"}, {"from": "T6.1", "to": "D6.1", "type": "key"}, {"from": "T6.1", "to": "D2.3", "type": "feed"}, {"from": "T6.1", "to": "D2.4", "type": "feed"}, {"from": "T6.1", "to": "D3.5", "type": "feed"}, {"from": "T6.1", "to": "D3.6", "type": "feed"}, {"from": "T6.1", "to": "D3.9", "type": "feed"}, {"from": "T6.1", "to": "D4.1", "type": "feed"}, {"from": "T6.1", "to": "D4.2", "type": "feed"}, {"from": "T6.1", "to": "D4.3", "type": "feed"}, {"from": "T6.1", "to": "D5.3", "type": "feed"}, {"from": "T6.1", "to": "D5.5", "type": "feed"}, {"from": "T6.1", "to": "D6.20", "type": "feed"}, {"from": "T6.1", "to": "D6.21", "type": "feed"}, {"from": "T6.1", "to": "D6.22", "type": "feed"}, {"from": "T6.2", "to": "D6.2", "type": "key"}, {"from": "T6.2", "to": "D6.3", "type": "key"}, {"from": "T6.2", "to": "D6.30", "type": "key"}, {"from": "T6.2", "to": "D5.1", "type": "feed"}, {"from": "T6.2", "to": "D5.4", "type": "feed"}, {"from": "T6.2", "to": "D5.5", "type": "feed"}, {"from": "T6.2", "to": "D6.4", "type": "feed"}, {"from": "T6.2", "to": "D6.7", "type": "feed"}, {"from": "T6.2", "to": "D6.9", "type": "feed"}, {"from": "T6.2", "to": "D6.10", "type": "feed"}, {"from": "T6.2", "to": "D6.12", "type": "feed"}, {"from": "T6.2", "to": "D6.13", "type": "feed"}, {"from": "T6.2", "to": "D6.19", "type": "feed"}, {"from": "T6.2", "to": "D6.20", "type": "feed"}, {"from": "T6.2", "to": "D6.23", "type": "feed"}, {"from": "T6.2", "to": "D6.27", "type": "feed"}, {"from": "T6.2", "to": "D8.2", "type": "feed"}, {"from": "T6.3", "to": "D6.4", "type": "key"}, {"from": "T6.3", "to": "D6.5", "type": "key"}, {"from": "T6.3", "to": "D6.27", "type": "key"}, {"from": "T6.3", "to": "D5.1", "type": "feed"}, {"from": "T6.3", "to": "D5.4", "type": "feed"}, {"from": "T6.3", "to": "D5.5", "type": "feed"}, {"from": "T6.3", "to": "D6.2", "type": "feed"}, {"from": "T6.3", "to": "D6.3", "type": "feed"}, {"from": "T6.3", "to": "D6.7", "type": "feed"}, {"from": "T6.3", "to": "D6.8", "type": "feed"}, {"from": "T6.3", "to": "D6.10", "type": "feed"}, {"from": "T6.3", "to": "D6.12", "type": "feed"}, {"from": "T6.3", "to": "D6.13", "type": "feed"}, {"from": "T6.3", "to": "D6.19", "type": "feed"}, {"from": "T6.3", "to": "D6.20", "type": "feed"}, {"from": "T6.3", "to": "D6.21", "type": "feed"}, {"from": "T6.3", "to": "D6.22", "type": "feed"}, {"from": "T6.3", "to": "D6.30", "type": "feed"}, {"from": "T6.4", "to": "D6.6", "type": "key"}, {"from": "T6.4", "to": "D6.29", "type": "key"}, {"from": "T6.4", "to": "D3.3", "type": "feed"}, {"from": "T6.4", "to": "D3.4", "type": "feed"}, {"from": "T6.4", "to": "D3.7", "type": "feed"}, {"from": "T6.4", "to": "D6.20", "type": "feed"}, {"from": "T6.4", "to": "D6.21", "type": "feed"}, {"from": "T6.4", "to": "D6.22", "type": "feed"}, {"from": "T6.5", "to": "D6.20", "type": "key"}, {"from": "T6.5", "to": "D6.21", "type": "key"}, {"from": "T6.5", "to": "D6.22", "type": "key"}, {"from": "T6.5", "to": "D6.7", "type": "feed"}, {"from": "T6.5", "to": "D6.9", "type": "feed"}, {"from": "T6.5", "to": "D6.13", "type": "feed"}, {"from": "T6.5", "to": "D6.24", "type": "feed"}, {"from": "T6.5", "to": "D8.2", "type": "feed"}, {"from": "T6.6", "to": "D6.8", "type": "key"}, {"from": "T6.6", "to": "D5.5", "type": "feed"}, {"from": "T6.6", "to": "D6.7", "type": "feed"}, {"from": "T6.6", "to": "D6.20", "type": "feed"}, {"from": "T6.6", "to": "D6.21", "type": "feed"}, {"from": "T6.6", "to": "D6.22", "type": "feed"}, {"from": "T6.7", "to": "D6.9", "type": "key"}, {"from": "T6.8", "to": "D6.10", "type": "key"}, {"from": "T6.8", "to": "D6.26", "type": "key"}, {"from": "T6.9", "to": "D6.14", "type": "key"}, {"from": "T6.9", "to": "D6.15", "type": "key"}, {"from": "T6.9", "to": "D6.12", "type": "feed"}, {"from": "T6.9", "to": "D6.13", "type": "feed"}, {"from": "T6.10", "to": "D6.15", "type": "key"}, {"from": "T6.10", "to": "D6.25", "type": "key"}, {"from": "T6.10", "to": "D6.12", "type": "feed"}, {"from": "T6.10", "to": "D6.14", "type": "feed"}, {"from": "T6.11A", "to": "D6.11", "type": "key"}, {"from": "T6.11A", "to": "D6.26", "type": "feed"}, {"from": "T6.11B", "to": "D6.12", "type": "key"}, {"from": "T6.11B", "to": "D6.13", "type": "key"}, {"from": "T6.12", "to": "D6.16", "type": "key"}, {"from": "T6.12", "to": "D6.17", "type": "key"}, {"from": "T6.12", "to": "D6.23", "type": "key"}, {"from": "T6.12", "to": "D6.24", "type": "key"}, {"from": "T6.12", "to": "D5.3", "type": "feed"}, {"from": "T6.12", "to": "D6.3", "type": "feed"}, {"from": "T6.12", "to": "D6.9", "type": "feed"}, {"from": "T6.12", "to": "D6.20", "type": "feed"}, {"from": "T6.12", "to": "D6.21", "type": "feed"}, {"from": "T6.12", "to": "D6.30", "type": "feed"}, {"from": "T6.12", "to": "D8.1", "type": "feed"}, {"from": "T6.12", "to": "D8.2", "type": "feed"}, {"from": "T6.13", "to": "D6.18", "type": "key"}, {"from": "T6.14", "to": "D6.19", "type": "key"}, {"from": "T6.15", "to": "D6.19", "type": "key"}, {"from": "T7.1", "to": "D7.1", "type": "key"}, {"from": "T7.1", "to": "D3.2", "type": "feed"}, {"from": "T7.1", "to": "D5.1", "type": "feed"}, {"from": "T7.1", "to": "D6.1", "type": "feed"}, {"from": "T7.1", "to": "D6.2", "type": "feed"}, {"from": "T7.1", "to": "D6.5", "type": "feed"}, {"from": "T7.1", "to": "D9.8", "type": "feed"}, {"from": "T7.1", "to": "D9.9", "type": "feed"}, {"from": "T7.2", "to": "D7.2", "type": "key"}, {"from": "T7.2", "to": "D6.5", "type": "feed"}, {"from": "T7.2", "to": "D6.8", "type": "feed"}, {"from": "T7.2", "to": "D6.10", "type": "feed"}, {"from": "T7.3", "to": "D7.3", "type": "key"}, {"from": "T7.3", "to": "D7.4", "type": "key"}, {"from": "T7.3", "to": "D9.8", "type": "feed"}, {"from": "T8.1", "to": "D8.4", "type": "key"}, {"from": "T8.1", "to": "D8.5", "type": "key"}, {"from": "T8.1", "to": "D8.1", "type": "feed"}, {"from": "T8.1", "to": "D8.2", "type": "feed"}, {"from": "T8.1", "to": "D8.3", "type": "feed"}, {"from": "T8.2", "to": "D8.1", "type": "key"}, {"from": "T8.2", "to": "D8.2", "type": "feed"}, {"from": "T8.2", "to": "D8.3", "type": "feed"}, {"from": "T8.3", "to": "D8.2", "type": "key"}, {"from": "T8.3", "to": "D2.6", "type": "feed"}, {"from": "T8.3", "to": "D5.5", "type": "feed"}, {"from": "T8.3", "to": "D6.9", "type": "feed"}, {"from": "T8.3", "to": "D8.3", "type": "feed"}, {"from": "T8.3", "to": "D9.6", "type": "feed"}, {"from": "T8.3", "to": "D9.9", "type": "feed"}, {"from": "T9.1", "to": "D9.1", "type": "key"}, {"from": "T9.2", "to": "D9.2", "type": "key"}, {"from": "T9.3", "to": "D9.3", "type": "key"}, {"from": "T9.4", "to": "D9.4", "type": "key"}, {"from": "T9.5", "to": "D9.5", "type": "key"}, {"from": "T9.5", "to": "D8.2", "type": "feed"}, {"from": "T9.6", "to": "D9.6", "type": "key"}, {"from": "T9.7", "to": "D9.7", "type": "key"}, {"from": "T9.7", "to": "D9.6", "type": "feed"}, {"from": "T9.8", "to": "D9.8", "type": "key"}, {"from": "T9.9", "to": "D9.9", "type": "key"}, {"from": "T9.10", "to": "D9.10", "type": "key"}, {"from": "T9.10", "to": "D9.16", "type": "key"}, {"from": "T9.11", "to": "D9.11", "type": "key"}, {"from": "T9.12", "to": "D9.12", "type": "key"}, {"from": "T9.13", "to": "D9.13", "type": "key"}, {"from": "T9.14", "to": "D9.14", "type": "key"}, {"from": "T9.15", "to": "D9.15", "type": "key"}, {"from": "T10.1", "to": "D10.1", "type": "key"}, {"from": "T10.1", "to": "D10.3", "type": "key"}, {"from": "T10.2", "to": "D10.2", "type": "key"}];    // FULL CONNECTIONS ARRAY
+    // PLACEHOLDER END
+
+    g.selectAll("circle.task")
+      .data(tasks)
+      .enter()
+      .append("circle")
+      .attr("class", "task")
+      .attr("r", taskRadius)
+      .attr("fill", d => wpColors[d.wp])
+      .attr("cx", (d, i) => centerX + outerRadius * Math.cos(i / tasks.length * 2 * Math.PI - Math.PI / 2))
+      .attr("cy", (d, i) => centerY + outerRadius * Math.sin(i / tasks.length * 2 * Math.PI - Math.PI / 2))
+      .attr("id", d => d.id)
+      .on("click", function(event, d) {
+  console.log("Clicked:", d.id);
+  d3.selectAll(".connection-line").classed("hidden", true);
+  d3.selectAll(`.connection-line[id^="conn-${d.id}-"]`).classed("hidden", false);
+})
+.append("title").text(d => d.label);
+
+    g.selectAll("text.task-label")
+      .data(tasks)
+      .enter()
+      .append("text")
+      .attr("class", "task-label")
+      .attr("x", (d, i) => centerX + outerRadius * Math.cos(i / tasks.length * 2 * Math.PI - Math.PI / 2))
+      .attr("y", (d, i) => centerY + outerRadius * Math.sin(i / tasks.length * 2 * Math.PI - Math.PI / 2) + 4)
+      .attr("dy", ".35em")
+      .attr("fill", "white")
+      .attr("id", d => "label-" + d.id)
+      .text(d => d.id);
+
+    const deliverableRings = [240, 320, 400, 480];
+    const ringCounts = [25, 25, 25, 25];
+    let deliverableIndex = 0;
+    deliverableRings.forEach((radius, ringIdx) => {
+      const count = ringCounts[ringIdx];
+      for (let i = 0; i < count && deliverableIndex < deliverables.length; i++, deliverableIndex++) {
+        const d = deliverables[deliverableIndex];
+        const angle = (i / count) * 2 * Math.PI - Math.PI / 2;
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
+
+        g.append("path")
+          .attr("class", "deliverable")
+          .attr("data-id", d.id)
+          .attr("d", hexagonPath)
+          .attr("fill", wpColors[d.wp] || "#999")
+          .attr("transform", `translate(${x},${y})`)
+          .attr("id", d.id)
+          .append("title").text(d.label);
+
+        g.append("text")
+          .attr("class", "deliverable-label")
+          .attr("data-id", d.id)
+          .attr("x", x)
+          .attr("y", y + 4)
+          .attr("font-size", "10px")
+          .attr("text-anchor", "middle")
+          .attr("fill", "white")
+          .attr("id", "label-" + d.id)
+          .text(d.id);
+      }
+    });
+
+    const defs = svg.append("defs");
+    
+
+connections.forEach((conn) => {
+  const fromTask = tasks.find(t => t.id === conn.from);
+  const toDeliv = deliverables.find(d => d.id === conn.to);
+  if (!fromTask || !toDeliv) return;
+
+  const fromIdx = tasks.findIndex(t => t.id === conn.from);
+  const taskPos = {
+    x: centerX + outerRadius * Math.cos(fromIdx / tasks.length * 2 * Math.PI - Math.PI / 2),
+    y: centerY + outerRadius * Math.sin(fromIdx / tasks.length * 2 * Math.PI - Math.PI / 2),
+    color: wpColors[fromTask.wp]
+  };
+
+  const deliverableIdx = deliverables.findIndex(d => d.id === conn.to);
+  const ringIdx = Math.floor(deliverableIdx / 25);
+  const posInRing = deliverableIdx % 25;
+  const radius = deliverableRings[ringIdx];
+  const angle = (posInRing / 25) * 2 * Math.PI - Math.PI / 2;
+  const deliverablePos = {
+    x: centerX + radius * Math.cos(angle),
+    y: centerY + radius * Math.sin(angle),
+    color: wpColors[toDeliv.wp]
+  };
+
+  connGroup.append("path")
+    .attr("class", "connection-line hidden")
+    .attr("id", `conn-${conn.from}-${conn.to}`)
+    .attr("d", `M${taskPos.x},${taskPos.y} L${deliverablePos.x},${deliverablePos.y}`)
+  .attr("stroke", "#666")
+  .attr("stroke-width", 1.5)
+  .attr("fill", "none")
+    .attr("stroke", "#999")
+    .attr("stroke-width", 2)
+    .attr("fill", "none");
+});
+
+
+
+    const activeWPs = new Set(wpKeys);
+    const legend = d3.select("#legend-content");
+    wpKeys.forEach(wp => {
+      const legendItem = legend.append("div").attr("class", "legend-entry")
+        .on("click", function () {
+          const isActive = activeWPs.has(wp);
+          if (isActive) activeWPs.delete(wp);
+          else activeWPs.add(wp);
+          updateVisibility();
+        });
+
+      legendItem.append("div")
+        .attr("class", "legend-box")
+        .style("background-color", wpColors[wp]);
+      legendItem.append("div").text(wp);
+    });
+
+    function updateVisibility() {
+      d3.selectAll("[data-wp]").each(function () {
+        const wp = d3.select(this).attr("data-wp");
+        d3.select(this).classed("hidden", !activeWPs.has(wp));
+      });
+    }
+
+    // == NEW INTERACTIVITY LOGIC ==
+
+    function focusTask(taskId) {
+      d3.selectAll(".task, .task-label, .deliverable, .deliverable-label, .link")
+        .style("opacity", 0.05);
+
+      d3.select(`#${taskId}`).style("opacity", 1);
+      d3.select(`#label-${taskId}`).style("opacity", 1);
+
+      connections.forEach(conn => {
+        if (conn.from === taskId) {
+          d3.select(`#${conn.to}`).style("opacity", 1);
+          d3.select(`#label-${conn.to}`).style("opacity", 1);
+          d3.select(`#link-${conn.from}-${conn.to}`).style("opacity", 1);
+        }
+      });
+    }
+
+    function resetAll() {
+  d3.selectAll(".connection-line").classed("hidden", true);
+      d3.selectAll(".task, .task-label, .deliverable, .deliverable-label, .link")
+        .style("opacity", 1);
+      d3.selectAll("circle.task").classed("active", false);
+    }
+
+    d3.selectAll("circle.task").on("click", function(event, d) {
+  console.log("Clicked:", d.id);
+      const isActive = d3.select(this).classed("active");
+      d3.selectAll("circle.task").classed("active", false);
+      if (isActive) {
+        resetAll();
+      } else {
+        d3.select(this).classed("active", true);
+        focusTask(d.id);
+      }
+    });
+
+  
+
+
+
+window.addEventListener("load", function () {
+  const svgElement = document.querySelector("svg");
+  const bbox = svgElement.getBBox();
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const scale = Math.min(width / bbox.width, height / bbox.height) * 0.9 * 1.1;
+  const x = (width - bbox.width * scale) / 2;
+  const y = (height - bbox.height * scale) / 2;
+
+  d3.select("svg")
+    .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
+});
+</script>
+
+<button id="reset-button" onclick="resetAll()" style="position:absolute; top:10px; left:120px; z-index:100; padding:6px 12px; background: light-grey; border:1px solid #ccc; border-radius: 5px; cursor: pointer;">Reset View</button>
+
+<script>
+function resetAll() {
+  d3.selectAll(".connection-line").classed("hidden", true);
+  d3.selectAll(".task, .task-label, .deliverable, .deliverable-label, .link").style("opacity", 1);
+}
+
+d3.selectAll("circle.task").on("click", function(event, d) {
+  console.log("Clicked:", d.id);
+  const taskId = d.id;
+  const connectedTo = new Set();
+  connections.forEach(conn => {
+    if (conn.from === taskId) {
+      connectedTo.add(conn.to);
+    }
+  });
+
+  d3.selectAll(".task, .task-label, .deliverable, .deliverable-label, .link").style("opacity", 0.1);
+
+  d3.select(this).style("opacity", 1);
+  d3.selectAll(".task-label").filter(dd => dd.id === taskId).style("opacity", 1);
+
+  d3.selectAll(".deliverable").filter(function() {
+    return connectedTo.has(this.getAttribute("data-id"));
+  }).style("opacity", 1);
+  d3.selectAll(".deliverable-label").filter(function() {
+    return connectedTo.has(this.getAttribute("data-id"));
+  }).style("opacity", 1);
+
+  d3.selectAll(".link").filter(function(d) {
+    return d.from === taskId;
+  }).style("opacity", 1);
+});
+
+// Patch to ensure deliverables and links have data-id attributes at render time
+function assignDataIds() {
+  d3.selectAll(".deliverable").attr("data-id", d => d.id);
+  d3.selectAll(".deliverable-label").attr("data-id", d => d.id);
+  d3.selectAll(".task-label").attr("data-id", d => d.id);
+  d3.selectAll(".link").attr("data-id", d => d.from + '-' + d.to);
+}
+assignDataIds();
+
+
+
+
+window.addEventListener("load", function () {
+  const svgElement = document.querySelector("svg");
+  const bbox = svgElement.getBBox();
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const scale = Math.min(width / bbox.width, height / bbox.height) * 0.9 * 1.1;
+  const x = (width - bbox.width * scale) / 2;
+  const y = (height - bbox.height * scale) / 2;
+
+  d3.select("svg")
+    .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
+});
+</script>
+
+
+<!-- Shared Modal for All Tasks -->
+<div id="task-popup" style="display:none; position: fixed; top: 20%; left: calc(85% - 20px); transform: translateX(-50%); background: white; padding: 20px; border: 2px solid #00497F; border-radius: 10px; z-index: 1000; width: 350px; max-height: 70%; overflow-y: auto;">
+  <h3 id="popup-title"></h3>
+  <p><strong>Status:</strong> <span id="popup-status"></span></p>
+  <p><strong>Description:</strong><br><span id="popup-description"></span></p>
+  <p><strong>Key Linked Deliverables:</strong></p>
+  <ul id="popup-key"></ul>
+  <p><strong>Feeds into:</strong></p>
+  <ul id="popup-feed"></ul>
+  <button onclick="document.getElementById('task-popup').style.display='none'">Close</button>
+</div>
+
+<script>
+  setTimeout(() => {
+    const popup = document.getElementById('task-popup');
+    const popupTitle = document.getElementById('popup-title');
+    const popupStatus = document.getElementById('popup-status');
+    const popupDesc = document.getElementById('popup-description');
+    const popupKey = document.getElementById('popup-key');
+    const popupFeed = document.getElementById('popup-feed');
+    const allTasks = d3.selectAll(".task").nodes();
+
+    const dataMap = {
+"T1.1": { title: "T1.1 – Project coordination", description: `Oversees governance, strategic and legal compliance, internal communication, risk management, and monitoring of deliverables and milestones. Ensures overall cohesion of the project.`, key: ["D1.1 \u2013 Project coordination and management guidelines", "D1.2 \u2013 Specified project implementation plan"], feed: ["D2.9 \u2013 WP2 implementation plan, including timetable", "D3.15 \u2013 WP3 implementation plan, including timetable", "D4.6 \u2013 WP4 implementation plan, including timetable", "D5.6 \u2013 WP5 implementation plan, including timetable", "D6.28 \u2013 WP6 implementation plan, including timetable", "D7.5 \u2013 WP7 implementation plan, including timetable", "D8.6 \u2013 WP8 implementation plan, including timetable", "D9.17 \u2013 WP9 implementation plan, including timetable"] },
+"T2.1": { title: "T2.1 – Develop a data management plan", description: `Prepares a FAIR-compliant plan detailing data collection, metadata handling, GDPR adherence, storage, open access protocols, and partner responsibilities.`, key: ["D2.1 \u2013 Data management plan", "D2.6 \u2013 Updating data management plan", "D2.8 \u2013 Updated data management plan"], feed: ["N/A"] },
+"T2.2": { title: "T2.2 – Design and agreement on two consecutive regional data calls", description: `Conducts two coordinated data calls across countries to collect biotic, abiotic, and supporting datasets.`, key: ["D3.1 \u2013 Spatial map layers on the abiotic ecosystem components in the Baltic Sea i.e. environmental predictor layers", "D3.2 \u2013 Environmental predictor layers modelling code", "D3.5 \u2013 Habitat and species distribution modelling code", "D3.6 \u2013 Spatial map layers on the biotic ecosystem components in the Baltic Sea", "D3.7 \u2013 Spatial map layers on the human activities in the Baltic Sea", "D3.10 \u2013 Spatial information on possible biodiversity hotspots (present and future)", "D3.12 \u2013 Biodiversity hotspot modelling code", "D3.14 \u2013 Overview of environment predictor factors to be included in the models"], feed: ["D2.2 \u2013 Updated MPA Portal", "D2.3 \u2013 Updated Biodiversity Database", "D2.4 \u2013 Updated Map and data service for the Baltic Sea region", "D2.5 \u2013 Updated gap analysis of data in order to get a clear overview of further data needs and infrastructure development", "D2.7 \u2013 Report on what data has been collated and uploaded to the various databases", "D2.10 \u2013 Report on data gaps", "D3.3 \u2013 Updated automated tool for illustrating spatial distribution of activities, pressures and impacts", "D3.4 \u2013 Manual for the tool for spatial pressures and impacts of human activities", "D4.3 \u2013 Updated ecosystem service assessment methodology", "D5.3 \u2013 Connectivity maps and matrices of key species, both passively and actively dispersing", "D5.5 \u2013 Maps for optimizing the MPA network", "D6.1 \u2013 List of protection targets for species and habitats for the Baltic Sea", "D6.5 \u2013 Protection indicators", "D6.7 \u2013 Manual for establishing a regional framework for protection", "D6.8 \u2013 Coherence and functionality gaps of the MPA network", "D6.9 \u2013 Guidelines for planning and designation on MPAs in the Baltic Sea", "D6.18 \u2013 Report on current monitoring and available monitoring techniques for MPAs", "D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.21 \u2013 Effectiveness and sufficiency of protection and restoration measures methodology and manual", "D6.22 \u2013 Effectiveness and sufficiency of protection and restoration measures report", "D6.23 \u2013 Regional Restoration Action Plan", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal", "D8.3 \u2013 Manual for using and updating the MPA Portal", "D8.4 \u2013 Requirement specification of the HELCOM MPA portal", "D8.5 \u2013 Data model for the HELCOM MPA database", "D9.9 \u2013 Webinar on MPAs", "D9.13 \u2013 Publications"] },
+"T2.3": { title: "T2.3 – Collate data/spatial information", description: `Compiles and harmonizes spatial datasets including species, habitats, and pressures across the Baltic.`, key: ["D2.3 \u2013 Updated Biodiversity Database", "D2.4 \u2013 Updated Map and data service for the Baltic Sea region", "D2.5 \u2013 Updated gap analysis of data in order to get a clear overview of further data needs and infrastructure development", "D2.7 \u2013 Report on what data has been collated and uploaded to the various databases", "D3.1 \u2013 Spatial map layers on the abiotic ecosystem components in the Baltic Sea i.e. environmental predictor layers", "D3.2 \u2013 Environmental predictor layers modelling code", "D3.5 \u2013 Habitat and species distribution modelling code", "D3.6 \u2013 Spatial map layers on the biotic ecosystem components in the Baltic Sea", "D3.7 \u2013 Spatial map layers on the human activities in the Baltic Sea", "D3.10 \u2013 Spatial information on possible biodiversity hotspots (present and future)", "D3.11 \u2013 Report on potential biodiversity hotspots in the Baltic Sea", "D3.12 \u2013 Biodiversity hotspot modelling code"], feed: ["D2.2 \u2013 Updated MPA Portal", "D2.10 \u2013 Report on data gaps", "D3.3 \u2013 Updated automated tool for illustrating spatial distribution of activities, pressures and impacts", "D3.4 \u2013 Manual for the tool for spatial pressures and impacts of human activities", "D3.13 \u2013 Future conditions modelling code", "D3.14 \u2013 Overview of environment predictor factors to be included in the models", "D4.3 \u2013 Updated ecosystem service assessment methodology", "D5.3 \u2013 Connectivity maps and matrices of key species, both passively and actively dispersing", "D5.5 \u2013 Maps for optimizing the MPA network", "D6.1 \u2013 List of protection targets for species and habitats for the Baltic Sea", "D6.5 \u2013 Protection indicators", "D6.7 \u2013 Manual for establishing a regional framework for protection", "D6.8 \u2013 Coherence and functionality gaps of the MPA network", "D6.9 \u2013 Guidelines for planning and designation on MPAs in the Baltic Sea", "D6.18 \u2013 Report on current monitoring and available monitoring techniques for MPAs", "D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.21 \u2013 Effectiveness and sufficiency of protection and restoration measures methodology and manual", "D6.22 \u2013 Effectiveness and sufficiency of protection and restoration measures report", "D6.23 \u2013 Regional Restoration Action Plan", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal", "D8.3 \u2013 Manual for using and updating the MPA Portal", "D8.4 \u2013 Requirement specification of the HELCOM MPA portal", "D8.5 \u2013 Data model for the HELCOM MPA database", "D9.9 \u2013 Webinar on MPAs", "D9.13 \u2013 Publications"] },
+"T2.4": { title: "T2.4 – Collate and harvest MPA management related information", description: `Harvests and translates national MPA management plans to extract conservation targets, measures, and pressures.`, key: ["D2.4 \u2013 Updated Map and data service for the Baltic Sea region", "D6.1 \u2013 List of protection targets for species and habitats for the Baltic Sea"], feed: ["D6.7 \u2013 Manual for establishing a regional framework for protection", "D6.8 \u2013 Coherence and functionality gaps of the MPA network", "D6.9 \u2013 Guidelines for planning and designation on MPAs in the Baltic Sea", "D6.10 \u2013 MPA management guidelines", "D6.11 \u2013 Annual MPA management capacity building workshops", "D6.12 \u2013 Assessment of management effectiveness of the Baltic MPA network", "D6.18 \u2013 Report on current monitoring and available monitoring techniques for MPAs", "D6.19 \u2013 Guidelines for monitoring MPAs", "D7.1 \u2013 Report of legislative landscape in the Baltic Sea", "D7.2 \u2013 Country specific legislative analysis and profiles", "D7.3 \u2013 Analysis of legislative gaps, challenges and barriers", "D7.4 \u2013 Legal guidance roadmap", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal"] },
+"T2.5": { title: "T2.5 – Updating existing databases", description: `Integrates collected and quality-checked data into HELCOM MPA and Biodiversity databases.`, key: ["D2.2 \u2013 Updated MPA Portal", "D2.3 \u2013 Updated Biodiversity Database", "D2.4 \u2013 Updated Map and data service for the Baltic Sea region", "D2.7 \u2013 Report on what data has been collated and uploaded to the various databases"], feed: ["D2.5 \u2013 Updated gap analysis of data in order to get a clear overview of further data needs and infrastructure development", "D2.10 \u2013 Report on data gaps", "D3.1 \u2013 Spatial map layers on the abiotic ecosystem components in the Baltic Sea i.e. environmental predictor layers", "D3.2 \u2013 Environmental predictor layers modelling code", "D3.3 \u2013 Updated automated tool for illustrating spatial distribution of activities, pressures and impacts", "D3.4 \u2013 Manual for the tool for spatial pressures and impacts of human activities", "D3.5 \u2013 Habitat and species distribution modelling code", "D3.6 \u2013 Spatial map layers on the biotic ecosystem components in the Baltic Sea", "D3.7 \u2013 Spatial map layers on the human activities in the Baltic Sea", "D3.10 \u2013 Spatial information on possible biodiversity hotspots (present and future)", "D3.11 \u2013 Report on potential biodiversity hotspots in the Baltic Sea", "D3.12 \u2013 Biodiversity hotspot modelling code", "D3.13 \u2013 Future conditions modelling code", "D3.14 \u2013 Overview of environment predictor factors to be included in the models", "D4.3 \u2013 Updated ecosystem service assessment methodology", "D5.3 \u2013 Connectivity maps and matrices of key species, both passively and actively dispersing", "D5.5 \u2013 Maps for optimizing the MPA network", "D6.1 \u2013 List of protection targets for species and habitats for the Baltic Sea", "D6.5 \u2013 Protection indicators", "D6.7 \u2013 Manual for establishing a regional framework for protection", "D6.8 \u2013 Coherence and functionality gaps of the MPA network", "D6.9 \u2013 Guidelines for planning and designation on MPAs in the Baltic Sea", "D6.18 \u2013 Report on current monitoring and available monitoring techniques for MPAs", "D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.21 \u2013 Effectiveness and sufficiency of protection and restoration measures methodology and manual", "D6.22 \u2013 Effectiveness and sufficiency of protection and restoration measures report", "D6.23 \u2013 Regional Restoration Action Plan", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal", "D8.3 \u2013 Manual for using and updating the MPA Portal", "D8.4 \u2013 Requirement specification of the HELCOM MPA portal", "D8.5 \u2013 Data model for the HELCOM MPA database", "D9.9 \u2013 Webinar on MPAs", "D9.13 \u2013 Publications"] },
+"T2.6": { title: "T2.6 – Gap analysis of further data needs", description: `Identifies spatial and management data gaps and inconsistencies, and provides recommendations for improvements.`, key: ["D2.5 \u2013 Updated gap analysis of data in order to get a clear overview of further data needs and infrastructure development", "D2.10 \u2013 Report on data gaps"], feed: ["N/A"] },
+"T3.1": { title: "T3.1 – Produce environmental predictor datasets to enable spatial modelling of species, biotopes and habitats", description: `Creates high-resolution environmental maps for spatial modeling of biodiversity.`, key: ["D3.1 \u2013 Spatial map layers on the abiotic ecosystem components in the Baltic Sea i.e. environmental predictor layers", "D3.2 \u2013 Environmental predictor layers modelling code", "D3.14 \u2013 Overview of environment predictor factors to be included in the models"], feed: ["D2.10 \u2013 Report on data gaps", "D3.8 \u2013 Estimates for future abiotic conditions under climate change", "D4.2 \u2013 Decision support tool for spatial assessment of ecosystem services", "D5.2 \u2013 Code for ecological coherence assessment", "D5.3 \u2013 Connectivity maps and matrices of key species, both passively and actively dispersing", "D5.5 \u2013 Maps for optimizing the MPA network", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal"] },
+"T3.2": { title: "T3.2 – Predicting spatio-temporal patterns of species, biotopes and habitats", description: `Defines methodology and modeling protocol using ensemble and Bayesian approaches.`, key: ["D3.5 \u2013 Habitat and species distribution modelling code", "D3.6 \u2013 Spatial map layers on the biotic ecosystem components in the Baltic Sea"], feed: ["D2.10 \u2013 Report on data gaps", "D3.9 \u2013 Estimates for future distribution of species and habitats under climate change", "D3.10 \u2013 Spatial information on possible biodiversity hotspots (present and future)", "D3.12 \u2013 Biodiversity hotspot modelling code", "D4.2 \u2013 Decision support tool for spatial assessment of ecosystem services", "D5.2 \u2013 Code for ecological coherence assessment", "D5.3 \u2013 Connectivity maps and matrices of key species, both passively and actively dispersing", "D5.5 \u2013 Maps for optimizing the MPA network", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal"] },
+"T3.3": { title: "T3.3 – Development of pressure models that describe threats to species and habitats", description: `Develops maps of human pressures including fishing, noise, and transport.`, key: ["D3.3 \u2013 Updated automated tool for illustrating spatial distribution of activities, pressures and impacts", "D3.4 \u2013 Manual for the tool for spatial pressures and impacts of human activities", "D3.7 \u2013 Spatial map layers on the human activities in the Baltic Sea"], feed: ["D2.10 \u2013 Report on data gaps", "D4.1 \u2013 Conceptual causal framework for EC, ES and pressures", "D4.2 \u2013 Decision support tool for spatial assessment of ecosystem services", "D5.2 \u2013 Code for ecological coherence assessment", "D5.5 \u2013 Maps for optimizing the MPA network", "D6.6 \u2013 Threat taxonomy", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal"] },
+"T3.4": { title: "T3.4 – Modelling of distribution maps to estimate future conditions of species, habitats and biotopes", description: `Projects biodiversity distribution under future climate scenarios using oceanographic models.`, key: ["D3.8 \u2013 Estimates for future abiotic conditions under climate change", "D3.9 \u2013 Estimates for future distribution of species and habitats under climate change", "D3.13 \u2013 Future conditions modelling code"], feed: ["D2.10 \u2013 Report on data gaps", "D3.11 \u2013 Report on potential biodiversity hotspots in the Baltic Sea", "D3.12 \u2013 Biodiversity hotspot modelling code", "D5.5 \u2013 Maps for optimizing the MPA network", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal"] },
+"T3.5": { title: "T3.5 – Analysis and identification of possible biodiversity hotspots and areas of high resilience", description: `Identifies priority areas for conservation using biodiversity modeling outputs.`, key: ["D3.10 \u2013 Spatial information on possible biodiversity hotspots (present and future)", "D3.11 \u2013 Report on potential biodiversity hotspots in the Baltic Sea", "D3.12 \u2013 Biodiversity hotspot modelling code"], feed: ["D2.10 \u2013 Report on data gaps", "D3.13 \u2013 Future conditions modelling code", "D5.5 \u2013 Maps for optimizing the MPA network", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal"] },
+"T4.1": { title: "T4.1 – Developing a multi-use methodology for Identification, Mapping and Quantification of ecosystem services", description: `Designs a multi-use ES assessment method using an ecosystem component-function-service cascade framework.`, key: ["D4.1 \u2013 Conceptual causal framework for EC, ES and pressures"], feed: ["D4.5 \u2013 Report on the multi-use methodology for identification, mapping, and quantification of ecosystem services", "D5.4 \u2013 Coherence assessment report", "D5.5 \u2013 Maps for optimizing the MPA network"] },
+"T4.2": { title: "T4.2 – Exploration of ecosystem component quality and location for upscaling of ecosystem services", description: `Tests the ES methodology at selected case study sites to validate its spatial application.`, key: ["D4.2 \u2013 Decision support tool for spatial assessment of ecosystem services"], feed: ["N/A"] },
+"T4.3": { title: "T4.3 – Analysing the relationship between ecosystem services and human activities", description: `Links pressures and human activities to ES provision and assesses trade-offs.`, key: ["D4.3 \u2013 Updated ecosystem service assessment methodology"], feed: ["N/A"] },
+"T4.4": { title: "T4.4 – Methodology for valuation of ecosystem services", description: `Summarizes findings on ES mapping, modeling, valuation, and stakeholder relevance.`, key: ["D4.5 \u2013 Report on the multi-use methodology for identification, mapping, and quantification of ecosystem services"], feed: ["D4.2 \u2013 Decision support tool for spatial assessment of ecosystem services"] },
+"T4.5": { title: "T4.5 – Assessment of ecosystem services, their distribution and valuation", description: `Proposes policy and planning integration for ES at regional and MPA levels.`, key: ["N/A"], feed: ["D6.8 \u2013 Coherence and functionality gaps of the MPA network"] },
+"T4.6": { title: "T4.6 – Gap analysis of ecosystem service methodology", description: `Identifies methodological limitations and gaps in the ES assessment.`, key: ["D4.4 \u2013 Gap analysis of ecosystem service methodology"], feed: ["N/A"] },
+"T5.1": { title: "T5.1 – Revision of coherence methodology", description: `Updates outdated MPA coherence assessment criteria and aligns with EU targets.`, key: ["D5.1 \u2013 Guidance for ecological coherence assessment"], feed: ["N/A"] },
+"T5.2": { title: "T5.2 – Development of connectivity models", description: `Uses biophysical models to assess larval and species connectivity across the Baltic.`, key: ["D5.3 \u2013 Connectivity maps and matrices of key species, both passively and actively dispersing", "D5.4 \u2013 Coherence assessment report"], feed: ["D4.2 \u2013 Decision support tool for spatial assessment of ecosystem services", "D8.2 \u2013 MPA Portal"] },
+"T5.3": { title: "T5.3 – Analysis and assessment of ecological coherence of the MPA network", description: `Applies updated coherence methodology to evaluate current MPA network.`, key: ["D5.2 \u2013 Code for ecological coherence assessment", "D5.4 \u2013 Coherence assessment report"], feed: ["D6.8 \u2013 Coherence and functionality gaps of the MPA network"] },
+"T5.4": { title: "T5.4 – Coherence assessment tool", description: `Builds a user-friendly tool for coherence assessment based on new methods.`, key: ["D5.2 \u2013 Code for ecological coherence assessment", "D5.4 \u2013 Coherence assessment report"], feed: ["D6.8 \u2013 Coherence and functionality gaps of the MPA network"] },
+"T5.5": { title: "T5.5 – Recommendations for the coherence assessment method improvements", description: `Recommends long-term improvements for coherence assessment based on testing.`, key: ["D5.1 \u2013 Guidance for ecological coherence assessment"], feed: ["N/A"] },
+"T5.6": { title: "T5.6 – Developing maps that will show spatial prioritization (identification of areas in need of protection) of the MPA network", description: `Identifies areas for protection and MPA network expansion using spatial protection prioritization through Zonation/Prioritizr.`, key: ["D5.5 \u2013 Maps for optimizing the MPA network"], feed: ["N/A"] },
+"T6.1": { title: "T6.1 – Listing ecosystem components and their characteristics", description: `Produces a shared regional list of ecosystem components (ECs) to support spatial protection planning and MPA designation.`, key: ["D6.1 \u2013 List of protection targets for species and habitats for the Baltic Sea"], feed: ["D2.3 \u2013 Updated Biodiversity Database", "D2.4 \u2013 Updated Map and data service for the Baltic Sea region", "D3.5 \u2013 Habitat and species distribution modelling code", "D3.6 \u2013 Spatial map layers on the biotic ecosystem components in the Baltic Sea", "D3.9 \u2013 Estimates for future distribution of species and habitats under climate change", "D4.1 \u2013 Conceptual causal framework for EC, ES and pressures", "D4.2 \u2013 Decision support tool for spatial assessment of ecosystem services", "D4.3 \u2013 Updated ecosystem service assessment methodology", "D5.3 \u2013 Connectivity maps and matrices of key species, both passively and actively dispersing", "D5.5 \u2013 Maps for optimizing the MPA network", "D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.21 \u2013 Effectiveness and sufficiency of protection and restoration measures methodology and manual", "D6.22 \u2013 Effectiveness and sufficiency of protection and restoration measures report"] },
+"T6.2": { title: "T6.2 – Agreeing on common vision, terminology and protection objectives", description: `Establishes a shared framework including protection goals and standardized terminology for spatial conservation planning.`, key: ["D6.2 \u2013 Common vision for protection and protection objectives for the Baltic Sea", "D6.3 \u2013 Protection terminology", "D6.30 \u2013 Draft list of protection terminology"], feed: ["D5.1 \u2013 Guidance for ecological coherence assessment", "D5.4 \u2013 Coherence assessment report", "D5.5 \u2013 Maps for optimizing the MPA network", "D6.4 \u2013 Protection targets", "D6.7 \u2013 Manual for establishing a regional framework for protection", "D6.9 \u2013 Guidelines for planning and designation on MPAs in the Baltic Sea", "D6.10 \u2013 MPA management guidelines", "D6.12 \u2013 Assessment of management effectiveness of the Baltic MPA network", "D6.13 \u2013 Recommendations for improving Management Effectiveness", "D6.19 \u2013 Guidelines for monitoring MPAs", "D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.23 \u2013 Regional Restoration Action Plan", "D6.27 \u2013 Draft blueprint for process for identifying a list of protection targets for species and habitats", "D8.2 \u2013 MPA Portal"] },
+"T6.3": { title: "T6.3 – Determining protection targets and indicators", description: `Defines ecological, governance, and threat-reduction targets and develops indicators for effectiveness.`, key: ["D6.4 \u2013 Protection targets", "D6.5 \u2013 Protection indicators", "D6.27 \u2013 Draft blueprint for process for identifying a list of protection targets for species and habitats"], feed: ["D5.1 \u2013 Guidance for ecological coherence assessment", "D5.4 \u2013 Coherence assessment report", "D5.5 \u2013 Maps for optimizing the MPA network", "D6.2 \u2013 Common vision for protection and protection objectives for the Baltic Sea", "D6.3 \u2013 Protection terminology", "D6.7 \u2013 Manual for establishing a regional framework for protection", "D6.8 \u2013 Coherence and functionality gaps of the MPA network", "D6.10 \u2013 MPA management guidelines", "D6.12 \u2013 Assessment of management effectiveness of the Baltic MPA network", "D6.13 \u2013 Recommendations for improving Management Effectiveness", "D6.19 \u2013 Guidelines for monitoring MPAs", "D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.21 \u2013 Effectiveness and sufficiency of protection and restoration measures methodology and manual", "D6.22 \u2013 Effectiveness and sufficiency of protection and restoration measures report", "D6.30 \u2013 Draft list of protection terminology"] },
+"T6.4": { title: "T6.4 – Identifying threats and pressures to ecosystems", description: `Compiles and categorizes pressures and threats relevant to protection values, and builds sensitivity matrices.`, key: ["D6.6 \u2013 Threat taxonomy", "D6.29 \u2013 Draft threat taxonomy"], feed: ["D3.3 \u2013 Updated automated tool for illustrating spatial distribution of activities, pressures and impacts", "D3.4 \u2013 Manual for the tool for spatial pressures and impacts of human activities", "D3.7 \u2013 Spatial map layers on the human activities in the Baltic Sea", "D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.21 \u2013 Effectiveness and sufficiency of protection and restoration measures methodology and manual", "D6.22 \u2013 Effectiveness and sufficiency of protection and restoration measures report"] },
+"T6.5": { title: "T6.5 – Assessing effectiveness and sufficiency of protection measures", description: `Creates a structured classification of protection measures, linked to threats and policy contexts.`, key: ["D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.21 \u2013 Effectiveness and sufficiency of protection and restoration measures methodology and manual", "D6.22 \u2013 Effectiveness and sufficiency of protection and restoration measures report"], feed: ["D6.7 \u2013 Manual for establishing a regional framework for protection", "D6.9 \u2013 Guidelines for planning and designation on MPAs in the Baltic Sea", "D6.13 \u2013 Recommendations for improving Management Effectiveness", "D6.24 \u2013 Regional restoration toolbox", "D8.2 \u2013 MPA Portal"] },
+"T6.6": { title: "T6.6 – Identifying the characteristics of the areas that are needed to optimize the network", description: `Outlines the spatial and ecological features necessary to expand and strengthen the MPA network.`, key: ["D6.8 \u2013 Coherence and functionality gaps of the MPA network"], feed: ["D5.5 \u2013 Maps for optimizing the MPA network", "D6.7 \u2013 Manual for establishing a regional framework for protection", "D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.21 \u2013 Effectiveness and sufficiency of protection and restoration measures methodology and manual", "D6.22 \u2013 Effectiveness and sufficiency of protection and restoration measures report"] },
+"T6.7": { title: "T6.7 – Updating guidelines for planning and designating HELCOM MPAs", description: `Revises existing HELCOM guidance based on new science and partner input.`, key: ["D6.9 \u2013 Guidelines for planning and designation on MPAs in the Baltic Sea"], feed: ["N/A"] },
+"T6.8": { title: "T6.8 – Updating guidelines for MPA management", description: `Improves management guidance by integrating adaptive strategies and partner consultation.`, key: ["D6.10 \u2013 MPA management guidelines", "D6.26 \u2013 Overview of MPA managers needs with regards to the MPA Management Guidelines"], feed: ["N/A"] },
+"T6.9": { title: "T6.9 – Developing methodology for Management Effectiveness Assessment (MEA) of the Baltic MPA network", description: `Creates a standardized method and tool to evaluate MPA management effectiveness.`, key: ["D6.14 \u2013 MEA tool", "D6.15 \u2013 Manual for MEA methodology and using MEA tool"], feed: ["D6.12 \u2013 Assessment of management effectiveness of the Baltic MPA network", "D6.13 \u2013 Recommendations for improving Management Effectiveness"] },
+"T6.10": { title: "T6.10 – Testing and validating the MEA method and its application for management effectiveness assessment", description: `Tests MEA method in pilot MPAs to refine the tool and validate its functionality.`, key: ["D6.15 \u2013 Manual for MEA methodology and using MEA tool", "D6.25 \u2013 Updated manual for MEA methodology and using MEA tool"], feed: ["D6.12 \u2013 Assessment of management effectiveness of the Baltic MPA network", "D6.14 \u2013 MEA tool"] },
+"T6.11A": { title: "T6.11A – Capacity building for MPA managers", description: `Training and regional workshops to enhance capacity among MPA practitioners.`, key: ["D6.11 \u2013 Annual MPA management capacity building workshops"], feed: ["D6.26 \u2013 Overview of MPA managers needs with regards to the MPA Management Guidelines"] },
+"T6.11B": { title: "T6.11B – Assessing the management effectiveness of the Baltic Sea MPA network", description: `Assesses MEA method and tool once ready`, key: ["D6.12 \u2013 Assessment of management effectiveness of the Baltic MPA network", "D6.13 \u2013 Recommendations for improving Management Effectiveness"], feed: ["N/A"] },
+"T6.12": { title: "T6.12 – Developing a regionally agreed Restoration Action Plan and toolbox", description: `Develops a Regional Restoration Action Plan with concrete targets and a supporting toolbox.`, key: ["D6.16 \u2013 Restoration action plan", "D6.17 \u2013 Restoration toolbox", "D6.23 \u2013 Regional Restoration Action Plan", "D6.24 \u2013 Regional restoration toolbox"], feed: ["D5.3 \u2013 Connectivity maps and matrices of key species, both passively and actively dispersing", "D6.3 \u2013 Protection terminology", "D6.9 \u2013 Guidelines for planning and designation on MPAs in the Baltic Sea", "D6.20 \u2013 Effectiveness and sufficiency of protection and restoration measures analysis", "D6.21 \u2013 Effectiveness and sufficiency of protection and restoration measures methodology and manual", "D6.30 \u2013 Draft list of protection terminology", "D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal"] },
+"T6.13": { title: "T6.13 – Reviewing the existing monitoring systems of the MPAs in the Baltic Sea region", description: `Assesses monitoring systems' coverage and quality across the Baltic, identifying gaps and overlaps.`, key: ["D6.18 \u2013 Report on current monitoring and available monitoring techniques for MPAs"], feed: ["N/A"] },
+"T6.14": { title: "T6.14 – Review of possible novel, innovative monitoring tools and methods to describe status of protection values and human pressure in MPAs", description: `Explores innovative and emerging technologies for environmental monitoring in MPAs.`, key: ["D6.19 \u2013 Guidelines for monitoring MPAs"], feed: ["N/A"] },
+"T6.15": { title: "T6.15 – Developing monitoring framework and guidelines for the MPAs network", description: `Creates monitoring frameworks, minimum standards, and techniques suited for MPAs.`, key: ["D6.19 \u2013 Guidelines for monitoring MPAs"], feed: ["N/A"] },
+"T7.1": { title: "T7.1 – Existing international legal frameworks", description: `Analyzes international and EU legislative tools and commitments relevant to spatial protection.`, key: ["D7.1 \u2013 Report of legislative landscape in the Baltic Sea"], feed: ["D3.2 \u2013 Environmental predictor layers modelling code", "D5.1 \u2013 Guidance for ecological coherence assessment", "D6.1 \u2013 List of protection targets for species and habitats for the Baltic Sea", "D6.2 \u2013 Common vision for protection and protection objectives for the Baltic Sea", "D6.5 \u2013 Protection indicators", "D9.8 \u2013 Ocean literacy kit", "D9.9 \u2013 Webinar on MPAs"] },
+"T7.2": { title: "T7.2 – Country profiles and knowledge sharing", description: `Compiles and analyzes national legal provisions related to marine protection in each Baltic country.`, key: ["D7.2 \u2013 Country specific legislative analysis and profiles"], feed: ["D6.5 \u2013 Protection indicators", "D6.8 \u2013 Coherence and functionality gaps of the MPA network", "D6.10 \u2013 MPA management guidelines"] },
+"T7.3": { title: "T7.3 – Guidance and best practice", description: `Develops recommendations and a roadmap to improve MPA legal implementation.`, key: ["D7.3 \u2013 Analysis of legislative gaps, challenges and barriers", "D7.4 \u2013 Legal guidance roadmap"], feed: ["D9.8 \u2013 Ocean literacy kit"] },
+"T8.1": { title: "T8.1 – Defining requirement specification for HELCOM MPA portal", description: `Identifies functional and technical requirements for the HELCOM MPA Portal.`, key: ["D8.4 \u2013 Requirement specification of the HELCOM MPA portal", "D8.5 \u2013 Data model for the HELCOM MPA database"], feed: ["D8.1 \u2013 Baltic Sea MPA database", "D8.2 \u2013 MPA Portal", "D8.3 \u2013 Manual for using and updating the MPA Portal"] },
+"T8.2": { title: "T8.2 – Analysis and update of HELCOM MPA database", description: `Updates the HELCOM MPA database structure and integrates new data.`, key: ["D8.1 \u2013 Baltic Sea MPA database"], feed: ["D8.2 \u2013 MPA Portal", "D8.3 \u2013 Manual for using and updating the MPA Portal"] },
+"T8.3": { title: "T8.3 – Development of HELCOM MPA Portal application", description: `Develops and deploys the MPA Portal with interactive mapping and user roles.`, key: ["D8.2 \u2013 MPA Portal"], feed: ["D2.6 \u2013 Updating data management plan", "D5.5 \u2013 Maps for optimizing the MPA network", "D6.9 \u2013 Guidelines for planning and designation on MPAs in the Baltic Sea", "D8.3 \u2013 Manual for using and updating the MPA Portal", "D9.6 \u2013 Augmented reality application (AR app)", "D9.9 \u2013 Webinar on MPAs"] },
+"T9.1": { title: "T9.1 – Communication Strategy", description: `Designs a communication strategy targeting various stakeholder groups.`, key: ["D9.1 \u2013 Communication strategy"], feed: ["N/A"] },
+"T9.2": { title: "T9.2 – Visual Identity and Communication Toolkit", description: `Develops a visual identity and outreach toolkit for consistent communication.`, key: ["D9.2 \u2013 Visual identity and communication toolkit"], feed: ["N/A"] },
+"T9.3": { title: "T9.3 – Project website", description: `Launches and maintains the PROTECT BALTIC website.`, key: ["D9.3 \u2013 Project website"], feed: ["N/A"] },
+"T9.4": { title: "T9.4 – Social media", description: `Manages social media outreach and content.`, key: ["D9.4 \u2013 Social media"], feed: ["N/A"] },
+"T9.5": { title: "T9.5 – MPA Portal user interface", description: `Designs user-friendly interface for the MPA Portal.`, key: ["D9.5 \u2013 MPA Portal user interface"], feed: ["D8.2 \u2013 MPA Portal"] },
+"T9.6": { title: "T9.6 – Augmented Reality Application", description: `Creates an AR app to raise awareness about Baltic MPAs.`, key: ["D9.6 \u2013 Augmented reality application (AR app)"], feed: ["N/A"] },
+"T9.7": { title: "T9.7 – AR app promotion kit", description: `Produces a toolkit to promote AR app use.`, key: ["D9.7 \u2013 AR app promotion kit"], feed: ["D9.6 \u2013 Augmented reality application (AR app)"] },
+"T9.8": { title: "T9.8 – Ocean literacy kit", description: `Develops educational content to promote understanding of marine protection.`, key: ["D9.8 \u2013 Ocean literacy kit"], feed: ["N/A"] },
+"T9.9": { title: "T9.9 – Webinar on MPAs", description: `Organizes online webinars about MPA functions and values.`, key: ["D9.9 \u2013 Webinar on MPAs"], feed: ["N/A"] },
+"T9.10": { title: "T9.10 – Project conferences", description: `Hosts the official project launch conference and final conference.`, key: ["D9.10 \u2013 Project opening conference", "D9.16 \u2013 Project final conference"], feed: ["N/A"] },
+"T9.11": { title: "T9.11 – Project video", description: `Creates an animated or filmed video summarizing the project.`, key: ["D9.11 \u2013 Project video"], feed: ["N/A"] },
+"T9.12": { title: "T9.12 – Outreach video", description: `Develops a short documentary for broader public awareness.`, key: ["D9.12 \u2013 Outreach video"], feed: ["N/A"] },
+"T9.13": { title: "T9.13 – Publications", description: `Produces peer-reviewed and grey literature on project findings.`, key: ["D9.13 \u2013 Publications"], feed: ["N/A"] },
+"T9.14": { title: "T9.14 – Email news blasts", description: `Sends out regular newsletters with updates and insights.`, key: ["D9.14 \u2013 Email news blasts"], feed: ["N/A"] },
+"T9.15": { title: "T9.15 – Content creation", description: `Develops various visual and textual media for dissemination.`, key: ["D9.15 \u2013 Content creation"], feed: ["N/A"] },
+"T10.1": { title: "T10.1 – Developing a Sustainability Strategy", description: `Creates a long-term strategy for sustaining and leveraging project results.`, key: ["D10.1 \u2013 Exploitation strategy", "D10.3 \u2013 Updated Exploitation strategy"], feed: ["N/A"] },
+"T10.2": { title: "T10.2 – Project-policy interface", description: `Maintains dialogue between the project and EU/national policy actors.`, key: ["D10.2 \u2013 After-project plan"], feed: ["N/A"] },
+"T10.3": { title: "T10.3 – Cooperation and synergies", description: `Fosters collaboration with other EU and global projects to ensure integration and outreach.`, key: ["N/A"], feed: ["N/A"] },
+    };
+
+    allTasks.forEach(task => {
+      task.addEventListener("click", function () {
+        const taskId = this.__data__.id;
+        const data = dataMap[taskId];
+        if (data) {
+          popupTitle.innerText = data.title;
+          popupStatus.innerText = data.status;
+          popupDesc.innerText = data.description;
+          popupKey.innerHTML = data.key.map(d => `<li>${d}</li>`).join('');
+          popupFeed.innerHTML = data.feed.map(d => `<li>${d}</li>`).join('');
+          popup.style.display = 'block';
+        } else {
+          popup.style.display = 'none';
+        }
+      });
+    });
+  }, 500);
+</script>
+
+
+<div style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;">
+  <img src="Logo_132_60_medium_high_res.png" alt="Protect Baltic Logo" style="height: 55px;">
+</div>
+</body>
+
+</html>
